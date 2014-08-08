@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup
-#import urllib3
+import urllib2
 import re
 import os
 import sqlite3
@@ -11,19 +11,13 @@ from geopy.geocoders import OpenMapQuest
 from geopy.distance import vincenty
 import geopy
 import time
-import csv
-import pycountry
-import urllib.request
-import urllib.error
-from urllib import parse
 
 def main():
     amountType = "all"
     amount = 40
     latitude = 44.2299618
     longitude = -76.4805666
-    #createDb()
-    
+    createDb()
     bands = get_bands()
     bands = get_band_info(bands,amountType,amount)
     bands = get_band_map_score(bands,(latitude,longitude))
@@ -32,9 +26,8 @@ def main():
         for t in b.tour_dates:
             all_data.append([b.artist,t.date,t.venue,t.city,t.region,t.dist_score])
     
-    all_data.sort(key=lambda x: x[1])
-    all_data.sort(key=lambda x: x[5], reverse=True)
-    #all_data = sorted(all_data, key=operator.itemgetter(5,1), reverse=True)
+            
+    all_data = sorted(all_data, key=operator.itemgetter(5,1), reverse=True)
 
     for data in all_data:
         print(data)
@@ -42,17 +35,10 @@ def main():
 def createDb():
     conn = sqlite3.connect('geocoder.db')
     c = conn.cursor()
-    c.execute('''DROP TABLE geolocations''')
     c.execute('''CREATE TABLE IF NOT EXISTS geolocations
-             (city text NOT NULL, region text NOT NULL, country text NOT NULL, latitude real, longitude real, PRIMARY KEY ( city, region, country))''')
+             (city text NOT NULL, region text NOT NULL, latitude real, longitude real, PRIMARY KEY ( city, region))''')
     conn.commit()
-    with open('C:\\Users\\STU\\Documents\\GitHub\\bandsplayingnearme\\GeoLiteCity-latest\\GeoLiteCity_20140805\\GeoLiteCity-Location.csv', 'r', encoding='latin-1') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
-        for i,row in enumerate(spamreader):
-            if i < 245:
-                continue
-            c.execute('''INSERT OR IGNORE INTO geolocations(city, region, country, latitude, longitude) VALUES (?,?,?,?,?)''', (row[3],row[2], row[1], row[5], row[6]))
-    conn.commit()
+
     conn.close()
     
 def get_band_map_score(bands,hometown):
@@ -62,24 +48,16 @@ def get_band_map_score(bands,hometown):
     geolocator = OpenMapQuest()
     for i,band in enumerate(bands):
         for j,tour_date in enumerate(band.tour_dates):
-            
-            region_is_US_state = False
-            if len(tour_date.region) == 2 and tour_date.region.isupper():
-                region_is_US_state = True
-            print(tour_date.city,tour_date.region,region_is_US_state)
-            if region_is_US_state:
-                c.execute("SELECT * from geolocations where city = '"+appos(tour_date.city)+"' and region = '"+appos(tour_date.region)+"'")
-            else:
-                #print(tour_date.city,abbr(tour_date.region),tour_date.region)
-                c.execute("SELECT * from geolocations where city = '"+appos(tour_date.city)+"' and country = '"+appos(abbr(tour_date.region))+"'")
+
+            c.execute("SELECT * from geolocations where city = '"+tour_date.city+"' and region = '"+tour_date.region+"'")
             data=c.fetchone()
             if data is None:
-                print("There is no location yet in: "+', '.join((tour_date.city, tour_date.region)))
+                print("There is no location yet in: "+u', '.join((tour_date.city, tour_date.region)).encode('utf-8'))
                 success = False
                 unknown = False
                 while True:
                     try:
-                        tour_date.location = geolocator.geocode(', '.join((tour_date.city, tour_date.region)))
+                        tour_date.location = geolocator.geocode(u', '.join((tour_date.city, tour_date.region)).encode('utf-8'))
                         #wait 2 seconds
                         time.sleep(10)
                         success = True
@@ -94,8 +72,7 @@ def get_band_map_score(bands,hometown):
                     else:
                         #wait 1 minutes
                         time.sleep(60)
-                if unknown == True or tour_date.location == None:
-                    print("unknown")
+                if unknown == True:
                     tour_date.dist_score = -1
                 else:
                     dist = vincenty(hometown,(tour_date.location.latitude,tour_date.location.longitude)).meters
@@ -104,16 +81,10 @@ def get_band_map_score(bands,hometown):
                         tour_date.dist_score = 0
                     else:
                         tour_date.dist_score = 1/dist
-                    unknown = ""
-                    if region_is_US_state:
-                        unknown = "US"
-                        c.execute('''INSERT INTO geolocations(city, region, country, latitude, longitude) VALUES (?,?,?,?,?)''', (tour_date.city,tour_date.region,unknown,tour_date.location.latitude,tour_date.location.longitude))
-                    else:
-                        unknown = "unknown"
-                        c.execute('''INSERT INTO geolocations(city, region, country, latitude, longitude) VALUES (?,?,?,?,?)''', (tour_date.city,unknown,abbr(tour_date.region),tour_date.location.latitude,tour_date.location.longitude))
+                    c.execute('''INSERT INTO geolocations(city, region, latitude, longitude) VALUES (?,?,?,?)''', (tour_date.city,tour_date.region,tour_date.location.latitude,tour_date.location.longitude))
                     conn.commit()
             else:
-                print('Location: '+', '.join((tour_date.city, tour_date.region))+' already in table.')
+                print('Location: '+u', '.join((tour_date.city, tour_date.region)).encode('utf-8')+' already in table.')
                 dist = vincenty(hometown,(data['latitude'],data['longitude'])).meters
                 print("distance: "+str(dist))
                 if dist <=0:
@@ -123,21 +94,7 @@ def get_band_map_score(bands,hometown):
     conn.commit()
     conn.close()
     return bands
-
-def appos(string):
-    return re.sub(r"'","''",string)
-
-def abbr(string):
-    countries = list(pycountry.countries)
-    for country in countries:
-        if country.name.lower() == string.lower():
-            return country.alpha2
-    if string == "Taiwan":
-        return "TW"
-    if string == "Uk":
-        return "GB"
-    raise NameError('country not found '+str(string))
-
+        
 def get_band_info(bands,amountType,amount):
 
     start_url="http://www.bandsintown.com/"
@@ -146,26 +103,11 @@ def get_band_info(bands,amountType,amount):
         print(band.artist)
         try:
             band.artist = band.artist.replace(" ", "")
-            #http = urllib3.PoolManager()
-            #print(band.artist)
-            #print(type(u'sdf'))
-            #print(type(band.artist))
-            #print(str(band.artist))
-            #print(band.artist.encode('utf-8'))
-            #print(band.artist.encode('utf-8').decode('utf-8'))
-            #html = http.request('GET', start_url+band.artist.encode('utf-8').decode('utf-8')).data
-
-            scheme, netloc, path, query, fragment = parse.urlsplit(start_url+band.artist)
-            path = parse.quote(path)
-            link = parse.urlunsplit((scheme, netloc, path, query, fragment))
-            
-            html = urllib.request.urlopen(link).read()
-            #html = urllib2.urlopen(start_url+band.artist).read()
+            html = urllib2.urlopen(start_url+band.artist.encode('utf-8')).read()
             soup = BeautifulSoup(html)
-        except urllib.error.HTTPError:
+        except urllib2.HTTPError, e:
             pass
-        except urllib.error.URLError:
-        #except urllib.error.LocationParseError:
+        except urllib2.URLError, e:
             pass
         divTag = soup.find_all("div",{'class':'events-table'})
         band.tour_dates = []
@@ -197,22 +139,23 @@ def get_bands():
     conn = sqlite3.connect("C:\\Users\\STU\\AppData\\Local\\MediaMonkey\\MM.DB")
     c = conn.cursor()
 
-    c.execute("SELECT distinct Songs.Artist COLLATE NOCASE  from Songs where Songs.Year >= 20090000 and Songs.Album COLLATE NOCASE like '%Birp!%'")
+    c.execute("SELECT distinct Songs.Artist COLLATE NOCASE  from Songs where Songs.Year >= 20130000 and Songs.Album COLLATE NOCASE like '%Birp!%'")
     bands = []
     for row in c:
         band = Band()
         band.artist = row[0]
         if band.artist != "":
             bands.append(band)
-    min_rating=sys.maxsize
+    min_rating=sys.maxint
     max_rating=0
-    min_number_of_songs = sys.maxsize
+    min_number_of_songs = sys.maxint
     max_number_of_songs = 0
-    min_playCounter= sys.maxsize
+    min_playCounter= sys.maxint
     max_playCounter = 0
     print("get ratings and play counter")
     for band in bands:
-        c.execute("SELECT Rating,PlayCounter from Songs where Songs.Artist COLLATE NOCASE = '"+appos(band.artist)+"'")
+        band.artist = re.sub(r"'","''",band.artist)
+        c.execute("SELECT Rating,PlayCounter from Songs where Songs.Artist COLLATE NOCASE = '"+band.artist+"'")
         total = 0.0
         rating = 0.0
         playCounter = 0.0
