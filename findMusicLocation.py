@@ -73,7 +73,12 @@ def get_band_map_score(bands,hometown):
                 c.execute("SELECT * from geolocations where city = '"+appos(tour_date.city)+"' and region = '"+appos(tour_date.region)+"'")
             else:
                 #print(tour_date.city,abbr(tour_date.region),tour_date.region)
-                c.execute("SELECT * from geolocations where city = '"+appos(tour_date.city)+"' and country = '"+appos(abbr(tour_date.region))+"'")
+                try:
+                    c.execute("SELECT * from geolocations where city = '"+appos(tour_date.city)+"' and country = '"+appos(abbr(tour_date.region))+"'")
+                except NameError:
+                    print(tour_date.region+"***123***")
+                    tour_date.dist_score = -1
+                    continue
             data=c.fetchone()
             if data is None:
                 print("There is no location yet in: "+', '.join((tour_date.city, tour_date.region)))
