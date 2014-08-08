@@ -64,6 +64,8 @@ def get_band_map_score(bands,hometown):
         for j,tour_date in enumerate(band.tour_dates):
             
             region_is_US_state = False
+            if tour_date.region == "BROOKLYN":
+                tour_date.region = "NY"
             if len(tour_date.region) == 2 and tour_date.region.isupper():
                 region_is_US_state = True
             print(tour_date.city,tour_date.region,region_is_US_state)
@@ -77,6 +79,7 @@ def get_band_map_score(bands,hometown):
                 print("There is no location yet in: "+', '.join((tour_date.city, tour_date.region)))
                 success = False
                 unknown = False
+                counter = 0
                 while True:
                     try:
                         tour_date.location = geolocator.geocode(', '.join((tour_date.city, tour_date.region)))
@@ -84,8 +87,10 @@ def get_band_map_score(bands,hometown):
                         time.sleep(10)
                         success = True
                     except geopy.exc.GeocoderTimedOut:
+                        print("timed out. waiting...")
                         pass
                     except geopy.exc.GeocoderServiceError:
+                        print("service error")
                         time.sleep(10)
                         unknown = True
                         success = True
@@ -94,6 +99,10 @@ def get_band_map_score(bands,hometown):
                     else:
                         #wait 1 minutes
                         time.sleep(60)
+                        counter+=1
+                        if counter > 3:
+                            unknown = True
+                            break
                 if unknown == True or tour_date.location == None:
                     print("unknown")
                     tour_date.dist_score = -1
@@ -136,6 +145,8 @@ def abbr(string):
         return "TW"
     if string == "Uk":
         return "GB"
+    if string == "Russia":
+        return "RU"
     raise NameError('country not found '+str(string))
 
 def get_band_info(bands,amountType,amount):
