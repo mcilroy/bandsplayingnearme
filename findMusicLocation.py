@@ -22,7 +22,7 @@ def main():
     amount = 40
     latitude = 44.2299618
     longitude = -76.4805666
-    #createDb()
+    createDb()
     
     bands = get_bands()
     bands = get_band_info(bands,amountType,amount)
@@ -30,10 +30,10 @@ def main():
     all_data = []
     for b in bands:
         for t in b.tour_dates:
-            all_data.append([b.artist,t.date,t.venue,t.city,t.region,t.dist_score])
+            all_data.append([b.score,b.artist,t.date,t.venue,t.city,t.region,t.dist_score])
     
-    all_data.sort(key=lambda x: x[1])
-    all_data.sort(key=lambda x: x[5], reverse=True)
+    all_data.sort(key=lambda x: x[2])
+    all_data.sort(key=lambda x: x[6], reverse=True)
     #all_data = sorted(all_data, key=operator.itemgetter(5,1), reverse=True)
 
     for data in all_data:
@@ -161,7 +161,6 @@ def get_band_info(bands,amountType,amount):
     for i,band in enumerate(bands):
         print(band.artist)
         try:
-            band.artist = band.artist.replace(" ", "")
             #http = urllib3.PoolManager()
             #print(band.artist)
             #print(type(u'sdf'))
@@ -171,7 +170,7 @@ def get_band_info(bands,amountType,amount):
             #print(band.artist.encode('utf-8').decode('utf-8'))
             #html = http.request('GET', start_url+band.artist.encode('utf-8').decode('utf-8')).data
 
-            scheme, netloc, path, query, fragment = parse.urlsplit(start_url+band.artist)
+            scheme, netloc, path, query, fragment = parse.urlsplit(start_url+band.artist.replace(" ", ""))
             path = parse.quote(path)
             link = parse.urlunsplit((scheme, netloc, path, query, fragment))
             
@@ -265,7 +264,7 @@ def get_bands():
         band.rating = normalize(band.rating,min_rating,max_rating)
         band.number_of_songs = normalize(band.number_of_songs,min_number_of_songs,max_number_of_songs)
         band.playCounter = normalize(band.playCounter,min_playCounter,max_playCounter)
-        band.score = band.rating + band.number_of_songs + band.playCounter
+        band.score = (0.4*band.rating) + (0.2*band.number_of_songs) + (0.4*band.playCounter)
     bands.sort(key=operator.attrgetter('score'))
     bands.reverse()
     conn.close()
