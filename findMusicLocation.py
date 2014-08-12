@@ -22,8 +22,8 @@ def main():
     amount = 40
     latitude = 44.2299618
     longitude = -76.4805666
-    createDb()
-    
+    #createDb()
+    addInfoNotFoundAnywhere()
     bands = get_bands()
     bands = get_band_info(bands,amountType,amount)
     bands = get_band_map_score(bands,(latitude,longitude))
@@ -36,9 +36,19 @@ def main():
     all_data.sort(key=lambda x: x[6], reverse=True)
     #all_data = sorted(all_data, key=operator.itemgetter(5,1), reverse=True)
 
+    with open('bands_output.csv', 'w', newline='') as csvfile:
+        spamwriter = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        for data in all_data:
+            spamwriter.writerow([x.encode("utf-8") if isinstance(x,str)==True else x for x in data])
     for data in all_data:
         print(data)
-
+    
+def addInfoNotFoundAnywhere():
+    conn = sqlite3.connect('geocoder.db')
+    c = conn.cursor()
+    c.execute('''INSERT OR IGNORE INTO geolocations(city, region, country, latitude, longitude) VALUES (?,?,?,?,?)''', ("Hollywood","CA", "US", 34.09833, -118.32583))
+    conn.commit()
+    conn.close()
 def createDb():
     conn = sqlite3.connect('geocoder.db')
     c = conn.cursor()
@@ -212,7 +222,8 @@ def get_bands():
     conn = sqlite3.connect("C:\\Users\\STU\\AppData\\Local\\MediaMonkey\\MM.DB")
     c = conn.cursor()
 
-    c.execute("SELECT distinct Songs.Artist COLLATE NOCASE  from Songs where Songs.Year >= 20090000 and Songs.Album COLLATE NOCASE like '%Birp!%'")
+    c.execute("SELECT distinct Songs.Artist COLLATE NOCASE  from Songs where Songs.Year >= 20090000")
+    #c.execute("SELECT distinct Songs.Artist COLLATE NOCASE  from Songs where Songs.Year >= 20090000 and Songs.Album COLLATE NOCASE like '%Birp!%'")
     bands = []
     for row in c:
         band = Band()
