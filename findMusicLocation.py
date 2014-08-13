@@ -36,10 +36,11 @@ def main():
     all_data.sort(key=lambda x: x[6], reverse=True)
     #all_data = sorted(all_data, key=operator.itemgetter(5,1), reverse=True)
 
-    with open('bands_output.csv', 'w', newline='') as csvfile:
+    with open('bands_output.csv', 'w', newline='', encoding='utf-8') as csvfile:
         spamwriter = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         for data in all_data:
-            spamwriter.writerow([x.encode("utf-8") if isinstance(x,str)==True else x for x in data])
+            #spamwriter.writerow([x.encode("utf-8") if isinstance(x,str)==True else x for x in data])
+            spamwriter.writerow(data)
     for data in all_data:
         print(data)
     
@@ -194,24 +195,27 @@ def get_band_info(bands,amountType,amount):
             pass
         divTag = soup.find_all("div",{'class':'events-table'})
         band.tour_dates = []
-        for i,row in enumerate(divTag[0].find_all("tr")):
-            if i==0:
-                continue
-            date_tag = row.find_all("td",{'class':'date'})[0]
-            meta = date_tag.find_all("meta")[0]
-            date = meta.get("content")
-            
-            venue_tag = row.find_all('td',{'class':'venue'})[0]
-            venue = venue_tag.find_all("span")[0].contents
-            location = row.find_all("td",{'class':'location'})[0]
-            
-            a = location.find_all("a")[0]
-            city = a.find_all("span")[0].contents
-            region = a.find_all("span")[1].contents
-            band.tour_dates.append(Tour_Date(date,venue[0],city[0],region[0]))
-        interested_bands.append(band)
-        if i == amount and amountType == "selectAmount":
-            break
+        try:
+            for i,row in enumerate(divTag[0].find_all("tr")):
+                if i==0:
+                    continue
+                date_tag = row.find_all("td",{'class':'date'})[0]
+                meta = date_tag.find_all("meta")[0]
+                date = meta.get("content")
+                
+                venue_tag = row.find_all('td',{'class':'venue'})[0]
+                venue = venue_tag.find_all("span")[0].contents
+                location = row.find_all("td",{'class':'location'})[0]
+                
+                a = location.find_all("a")[0]
+                city = a.find_all("span")[0].contents
+                region = a.find_all("span")[1].contents
+                band.tour_dates.append(Tour_Date(date,venue[0],city[0],region[0]))
+            interested_bands.append(band)
+            if i == amount and amountType == "selectAmount":
+                break
+        except IndexError:
+            pass
     return interested_bands
         
     
@@ -221,8 +225,8 @@ def get_band_info(bands,amountType,amount):
 def get_bands():
     conn = sqlite3.connect("C:\\Users\\STU\\AppData\\Local\\MediaMonkey\\MM.DB")
     c = conn.cursor()
-
-    c.execute("SELECT distinct Songs.Artist COLLATE NOCASE  from Songs where Songs.Year >= 20090000")
+    c.execute("SELECT distinct Songs.Artist COLLATE NOCASE from Songs")
+    #c.execute("SELECT distinct Songs.Artist COLLATE NOCASE  from Songs where Songs.Year >= 20140000")
     #c.execute("SELECT distinct Songs.Artist COLLATE NOCASE  from Songs where Songs.Year >= 20090000 and Songs.Album COLLATE NOCASE like '%Birp!%'")
     bands = []
     for row in c:
@@ -246,11 +250,11 @@ def get_bands():
         for row in c:
             total += 1
             if row[0] != -1.0:
-                rating += float(row[0])
+                rating += float(row[0])*float(row[0]) # convert to exponential curve
                 ratedSongsTotal += 1
-                if float(row[0]) > max_rating:
+                if rating > max_rating:
                     max_rating = float(row[0])
-                if float(row[0]) < min_rating:
+                if rating < min_rating:
                     min_rating = float(row[0])
             playCounter += int(row[1])
             if int(row[1]) > max_playCounter:
@@ -264,7 +268,8 @@ def get_bands():
         if ratedSongsTotal <= 0:
             band.rating = 0
         else:
-            band.rating = rating/ratedSongsTotal
+            #band.rating = rating/ratedSongsTotal
+            band.rating = rating  #additive process
         if total <= 0:
             band.number_of_songs = 0
             band.playCounter = 0
@@ -275,7 +280,8 @@ def get_bands():
         band.rating = normalize(band.rating,min_rating,max_rating)
         band.number_of_songs = normalize(band.number_of_songs,min_number_of_songs,max_number_of_songs)
         band.playCounter = normalize(band.playCounter,min_playCounter,max_playCounter)
-        band.score = (0.4*band.rating) + (0.2*band.number_of_songs) + (0.4*band.playCounter)
+        #band.score = (0.4*band.rating) + (0.2*band.number_of_songs) + (0.4*band.playCounter)
+        band.score = band.rating # simply add up exponential ratings of all songs to get score
     bands.sort(key=operator.attrgetter('score'))
     bands.reverse()
     conn.close()
